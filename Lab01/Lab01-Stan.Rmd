@@ -1,0 +1,170 @@
+---
+title: "`R` Notebook to learn about `Stan`"
+author: "Berwin A Turlach"
+date: "March 06, 2021"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy = TRUE)
+```
+
+# Introduction
+
+This notebook introduces you to `Stan`, another probabilistic programming language that was developed more recently. There is plenty of information about the `Stan` project available at <http://mc-stan.org/>.
+
+To see a nicely rendered version of this notebook, which is easier to read, you should click on the `Preview` button. The typeset version of this notebook is also available on LMS so that you can see what output you are supposed to see when running the code. But you are free to modify the code and to experiment.
+
+We will use `Stan` via `R` and, in general, will need the following two packages to do so:
+
+```{r}
+library(rstan)
+library(bayesplot)
+```
+
+`Stan` uses a `C++` compiler to compile the code you write. This means that once it is compiled, the code executes very fast, but compile times can be a bit slow. A lot of documentation on `Stan` is available at <http://mc-stan.org/documentation/>, including the complete manual (which is also on LMS).
+
+As `Stan` uses a `C++` compiler to compile the code, the syntax used in `Stan` is not unlike `C/C++`, but there are some differences. Firstly, your code has to be distributed over the following named program blocks:
+
+-   `functions`: used for user-defined functions. We will probably not use this one often.
+-   `data`: the required data of your model.
+-   `transformed data`: allows you to transform some of the data that is input. This is useful if you what others to use your code, need to do some data manipulations, and what to keep the amount of data that has to be input at a minimum. We will typically not use this and do all our data manipulations in `R` and input all data via the `data` block.
+-   `parameters`: used to declare the parameters in your model.
+-   `transformed parameters`: code in this block allows you to define quantities in terms of data and parameters so that they can be used later.
+-   `model`: the block in which you define your model.
+-   `generated quantities`: allows you to derive quantities based on parameters, data, and optionally (pseudo) random number generation. We will use this block later in the unit.
+
+All blocks are optional. However, when we perform a Bayesian analysis of data, we will always require a `model` block. The blocks that you use must appear in the order given above. While the code in all blocks, but the `model` block, has very much a C/C++ feel to it, it does not follow the rules of C/C++. In particular, within each block you need to first declare all quantities used in that block (which may then also be used in later blocks), followed by any statements that implement some calculations. Also, in contrast to BUGS, the order of statements matter in `Stan` code!
+
+Perhaps it is best to learn through some examples.
+
+# Example 1
+
+A nice feature of `R` notebooks is that they allow you to insert code from other languages too. Click on the arrow next to the `Insert` tab and you can see that you (currently) can insert code written in `Bash`, `D3`, `Python`, `Rcpp`, `SQL` and `Stan`. The next chunk is code written in the `Stan` language. The rendering in the `Preview` option seems to be garbled (at least on my computer) but I am sure that this infidelity will soon be fixed in future versions.
+
+For the moment, hit the right most green triangle (the one pointing to the right) to start the processing of this chunk. The compilation will take some time and so you might start it now and have your computer compile the code while reading the explanation of the code below.
+
+```{stan, output.var="binomial", label=ex1, cache=TRUE}
+generated quantities{
+  real y;
+  real p;
+  
+  y = binomial_rng(8, 0.5);
+  p = y <= 2;
+}
+```
+
+First, when inserting `Stan` code into an `R` notebook, you will see that the top line reads `{stan, output.var=}`[^1]. You have to specify a name (in quotation marks) as argument to `output.var`. If your model is successful compiled, you should see an object with that name appear in your `Global Environment` (top right pane in the standard configuration of RStudio) that contains the compiled model. If your model is not successful compiled, happy bug hunting. :-)
+
+[^1]: I also give this code chunk a label via `label=ex1` so that I can use the `cache=TRUE` option. Caching the (compiled) `Stan` object allows me to typeset this document repeatedly without having to compile all the `Stan` code each time.
+
+As we are performing a simulation study here, we only have a `generated quantities` block. In this block, all quantities have to be defined as `real`s (or vectors/matrices of `real`s). Here we only need two variables `y` and `p`. We use `Stan`'s random number generator for the binomial distribution `binomial_rng` to generate a realisation from the binomial distribution with parameters $n=8$ and $p=0.5$. Note that `Stan` expects $n$ as first argument and $p$ as second, which differs from the way `BUGS` parameterises the binomial distribution.
+
+After generating `y`, we just check whether the generated value is less or equal to two and store the result of that comparison in `p`. If `y` is less or equal to two, `p` will be set to 1 and 0 otherwise.
+
+Hopefully, by now the code has compiled, that is the green right pointing triangle that turned into a red square, after you clicked on it, has turned into a green right pointing triangle again. You should also see some output resulting from the C++ compiler.
+
+Once the code is compiled, the following command produces 4000 samples for `y` and `p`. We could create more samples by using the optional argument `iter`, and we could use the optional argument `warmup` to skip the warm up period which is not needed here, but for now we use the default values. Note that we have to specify the optional argument `algorithm="Fixed_param"`, as we have no data that we want to fit to a model about whose parameter we want to make inference:
+
+```{r, results='hide'}
+simul1 <- sampling(binomial, algorithm="Fixed_param")
+```
+
+Finally, we can just print the summary statistics of these variables. The result is fairly similar to those obtained in `BUGS`:
+
+```{r}
+print(simul1, c("y", "p"), digits=5)
+```
+
+# Example 2
+
+The code for the second example is a bit more involved. You should hit the green right pointing arrow now to start the compilation of this chunk.
+
+```{stan, output.var="gamma", label=ex2, cache=TRUE}
+generated quantities{
+  real total;
+  real number;
+  
+  number = 0.0;
+  total = 0.0;
+  while(total < 1000){
+    total += gamma_rng(4, 0.04);
+    number += 1.0;
+  }
+  number -= 1.0;
+}
+```
+
+But as `Stan`'s language has better flow-control than `BUGS`, the simulation is more straightforward to implement. We need to variables `total` to keep track of the total when summing up gamma variates and `number` to keep track how many variates we add up. Both variables are initialised to zero and then we have a `while(){}` loop that iterates until `total` is larger or equal to 1000. In the body of the `while` loop we add realisations from a gamma distribution with parameters $\alpha=4$ and $\beta=0.04$ to `total` and increase `number` to keep track of how many realisations we have added up. When the `while` loop terminates, we have added one realisations too many, so we decrease `number` by one.
+
+The commands `a += b` and `a -= b` are short for `a = a + b` and `a = a - b`, respectively. A language feature that should be familiar to people who are familiar with the programming language `C` and `C++` (and probably others).
+
+Once the code is compiled, the following command produces 4000 samples for `number` and `total`. Here we are only interested in `total`. Again we have to specify the optional argument `algorithm="Fixed_param"`, as we have no data that we want to fit to a model about whose parameter we want to make inference, but otherwise we use the default values for all optional arguments:
+
+```{r, results='hide'}
+simul2 <- sampling(gamma, algorithm="Fixed_param")
+```
+
+Finally, we can just print the summary statistics of these variables. The result is fairly similar to those obtained in `BUGS`:
+
+```{r}
+print(simul2, pars=c("number"), digits = 5)
+```
+
+## A perhaps surprising result
+
+A `Stan` program that is closer to the `BUGS` code we used is given in the following program. Again, You should hit the green right pointing arrow now to start the compilation of this chunk.
+
+```{stan, output.var="gamma2", label=surprise, cache=TRUE}
+generated quantities{
+  real total;
+  real number;
+  real y;
+  real z;
+  
+  y = gamma_rng(4, 0.04);
+  number = 1.0;
+  total = y;
+  while(total < 1000){
+    z = gamma_rng(4, 0.04);
+    total += z;
+    number += 1.0;
+  }
+  number -= 1.0;
+}
+```
+
+Here we store the first generated realisation in a variable called `y` so that we can check the realisations of this variable too, thus checking the gamma random number generator of `Stan`. That number is used to initialise `total` and `number` is initialised to 1. In the `while` loop, we store the generated random variable in a variable called `z` before adding this realisation to `total`. Otherwise the program is pretty much as the previous one.
+
+There is a slight flaw in this program. If `y`, the first generated realisation from the gamma distribution, is larger than 1000, then the `while` loop is never entered and, hence, `number` ends up to be 0 instead of 1. But the chance of this happening is so small that we can ignore it. In fact, if $X$ has a gamma distribution with parameters $\alpha=4$ and $\beta=0.04$, then $P[X> 1000] = 1- P[X\le 1000] = 1-F(1000)$, where $F$ is the CDF of $X$. The CDF of the gamma distribution is readily available in `R`:
+
+```{r}
+1-pgamma(1000, 4, 0.04)
+```
+
+However, we are subtracting a number very close to 1 from 1, which typically leads to loss of precision in numerical calculations. Numerically, it is better to evaluate $P[X>1000]$ directly. This can be done in `R` by using the optional argument `lower.tail`:
+
+```{r}
+pgamma(1000, 4, 0.04, lower.tail = FALSE)
+```
+
+Once the code is compiled, the following command produces 4000 samples for all declared variables. Now we are interested in `total`, `y` and `z`. Again we have to specify the optional argument `algorithm="Fixed_param"`, as we have no data that we want to fit to a model about whose parameter we want to make inference, but otherwise we use the default values for all optional arguments:
+
+```{r, results='hide'}
+simul3 <- sampling(gamma2, algorithm="Fixed_param")
+```
+
+The results of this simulation study might surprise you. Why is there such a difference in the summary statistics for `y` and `z`? Do you have any explanation? Feel free to discuss this with other students or the teaching staff:
+
+```{r}
+print(simul3, c("y", "z", "number"), digits=5)
+```

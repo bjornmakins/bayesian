@@ -1,0 +1,139 @@
+---
+title: "Computer Lab 01 --- `BRugs`"
+author: "Berwin A Turlach"
+date: "March 06, 2021"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy=TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the R package `BRugs` is available (e.g. a Linux operating system), then the following shows how to run the two computer lab examples using the `BRugs` package.
+
+# Exercise 1
+
+Assume we have the `BUGS` code for that example in a file called `Ex1.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Ex1.bug"), sep="\n")
+```
+
+First, we load the package `BRugs`:
+
+```{r}
+library(BRugs)
+```
+
+Then we check whether the code in the file `Ex1.bug` is syntactically correct:
+
+```{r}
+modelCheck("Ex1.bug")
+```
+
+Depending on where you store the downloaded files on the computers in the Mathematics Computing Laboratory, the above command might throw an error and complain that the file `Ex1.bug` cannot be found. This presumably happens as the command was given a path to the file and `R` (and `RStudio`) do not support UNC paths. Make sure that you point `RStudio` to the directory where you have stored the file via a non UNC path, as discussed in the lectures.
+
+Next, we compile one chain:
+
+```{r}
+modelCompile(numChains=1)
+```
+
+And generate initial values for that one chain:
+
+```{r}
+modelGenInits()
+```
+
+Next, we specify the two nodes that we want to monitor:
+
+```{r}
+samplesSet(c("Y", "P2"))
+```
+
+and then update the model 10,000 times:
+
+```{r}
+modelUpdate(10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+
+```{r}
+samplesStats("*")
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+
+```{r, fig.height=8, fig.width=6, out.width="0.9\\textwidth", fig.align='center'}
+samplesDensity("*", ask = FALSE)
+```
+
+# Exercise 2
+
+Assume we have the `BUGS` code for that example in a file called `Ex2.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Ex2.bug"), sep="\n")
+```
+
+First, we load the package `BRugs`:
+
+```{r}
+library(BRugs)
+```
+
+Then we check whether the code in the file `Ex1.bug` is syntactically correct[^1]:
+
+[^1]: If this command results in an error message about the file not being found, remember how to use `ShortPathName(...)` as in the first example.
+
+```{r}
+modelCheck("Ex2.bug")
+```
+
+Next, we compile one chain:
+
+```{r}
+modelCompile(numChains=1)
+```
+
+And generate initial values for that one chain:
+
+```{r}
+modelGenInits()
+```
+
+Next, we specify the two nodes that we want to monitor:
+
+```{r}
+samplesSet(c("number", "Y[1]", "check"))
+```
+
+and then update the model 10,000 times:
+
+```{r}
+modelUpdate(10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+
+```{r}
+samplesStats("*")
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+
+```{r, fig.height=8, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesDensity("*", ask = FALSE)
+```

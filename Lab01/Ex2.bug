@@ -1,0 +1,14 @@
+model {
+  for(i in 1:20) {
+     Y[i] ~ dgamma(4, 0.04)
+  }
+  cum[1] <- Y[1]
+  for(i in 2:20) {
+    cum[i] <- cum[i-1] + Y[i]
+  }
+  for(i in 1:20) {
+    cum.step[i] <- i*step(1000 - cum[i])
+  }
+  number <- ranked(cum.step[], 20)  # maximum number in cum.step
+  check  <- equals(cum.step[20], 0) # always 1 if I=20 big enough 
+}

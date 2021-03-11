@@ -1,0 +1,99 @@
+---
+title: "Computer Lab 01 --- `rjags`"
+author: "Berwin A Turlach"
+date: "March 06, 2021"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy = TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the R package `rjags` and `JAGS` is available (e.g. a MAC OSX system or a Linux operating system), then the following shows how to run the two computer lab examples using the `rjags` package.
+
+# Exercise 1
+
+Assume we have the `BUGS` code for that example in a file called `Ex1.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Ex1.bug"), sep="\n")
+```
+
+First, we load the package `rjags`:
+
+```{r}
+library(rjags)
+```
+
+With JAGS, the model checking and compiling step is done in one step. Hence, we compile our model, and specify that we want to run one chain, by the following command:
+
+```{r}
+mod <- jags.model("Ex1.bug", n.chains=1)
+```
+
+If we want to run the chain for 10,000 iterations while monitoring `Y` and `P2`, we have to issue the following command:
+
+```{r}
+out <- coda.samples(mod, c("Y", "P2"), n.iter=10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+
+```{r}
+summary(out)
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+
+```{r, fig.height=6, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+plot(out, trace=FALSE)
+```
+
+# Exercise 2
+
+To run this example in `JAGS` we have to make some slight changes to the code as `JAGS` does not have a function called `ranked` directly implemented. Hence, we sort the object `cum.step` and then take the last value of the sorted vector. Thus, for running in `JAGS` the `BUGS` code is as follows and, say, we have the code in a file called `Ex2-jags.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Ex2-jags.bug"), sep="\n")
+```
+
+First, we load the package `rjags`:
+
+```{r}
+library(rjags)
+```
+
+With JAGS, the model checking and compiling step is done in one step. Hence, we compile our model, and specify that we want to run one chain, by the following command:
+
+```{r}
+mod <- jags.model("Ex2-jags.bug", n.chains = 1)
+```
+
+If we want to run the chain for 10,000 iterations while monitoring `Y` and `P2`, we have to issue the following command:
+
+```{r}
+out <- coda.samples(mod, c("number", "Y[1]", "check"), n.iter=10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+
+```{r}
+summary(out)
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+
+```{r, fig.height=6, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+plot(out, trace=FALSE)
+```

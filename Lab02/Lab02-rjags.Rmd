@@ -1,0 +1,98 @@
+---
+title: "Computer Lab 02 --- `rjags`"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+bibliography: Lab02.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy=TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the R
+package `rjags` and `JAGS` is available (e.g. a MAC OSX system or a Linux operating system), then the following shows how to run the two computer lab examples using the `rjags` package.
+
+
+# Douglas firs example with `rags`
+
+As mentioned in the lecture, `JAGS` does not have the geometric
+distribution implemented.  But, similarly to `Stan`, it has an
+implementation of the negative binomial distribution of which the
+geometric distribution is a special case.  The parameterisation in
+`JAGS` is even more intuitive than the one used in `Stan`; see
+@jags:manual:17 [, p. 51ff].
+
+## Flat prior
+
+Assume we have the `BUGS` code for that example in a file called `NegBin-flat.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("NegBin-flat.bug"), sep="\n")
+```
+
+Note that this code is using a flat prior for $p$.
+
+First, we load the package `rjags`:
+
+```{r}
+library(rjags)
+```
+
+With JAGS, the model checking, data loading and compiling step is done in one step.
+Hence, we compile our model while at the same time specifying the data by the
+following command:
+```{r}
+y.freq <- c(71, 28, 5, 2, 2, 1)
+y.obs <- rep(0:5, times=y.freq)
+mod <- jags.model("NegBin-flat.bug", data=list(y=y.obs, N=length(y.obs)), n.chains=4)
+```
+
+If we want to run the chain for 10000 iterations while monitoring `p`, we have to issue the following command:
+```{r, results='hide'}
+out <- coda.samples(mod, "p", n.iter=10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+summary(out)
+```
+
+The trace plot and the empirical densities of the simulated values are produced by the first command in the following code snippet, while the estimated auto-correlation function of the chain is obtained and plotted by the second and third command, respectively:
+```{r, fig.height=4, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+## Jeffreys' prior
+
+Unfortunately, `JAGS` does not have a `dflat()` improper prior.  We have to specify a proper prior, which can be done by using a uniform prior over a large enough region.  Thus,  assume we have the `BUGS` code for that example in a file called `NegBin-Jeffreys.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("NegBin-Jeffreys.bug"), sep="\n")
+```
+After that, we follow pretty much the same steps as before.  Though, if we have a prior on `u` that is uniform on $[0,1000]$ we might experience problems with `JAGS` not being able to produce samples as one or more of the chains start at bad initial values.  Hence, here we also specify initial values, again via a list of lists:
+```{r}
+data.in <- list(y=y.obs, N=length(y.obs))
+inits <- list(list(u=1), list(u=2), list(u=4), list(u=6))
+mod <- jags.model("NegBin-Jeffreys.bug", data = data.in, inits = inits, n.chains=4)
+```
+
+```{r, fig.height=4, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+out <- coda.samples(mod, "p", n.iter=10000)
+summary(out)
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+
+# References

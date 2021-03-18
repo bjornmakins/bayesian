@@ -1,0 +1,37 @@
+# At least one of the Xis will not fall into the interval [-1.96, 1.96].
+model1{
+	a <- phi(-1.96) # cdf prob of below -1.96
+	b <- phi(1.96) # cdf prob of below 1.96
+	
+	prob <- 1-(b - a) # prob that x will not fall into [-1.96, 1.96].
+	X ~ dbin(prob, 10) # ten random variables created with cdf
+	P1 <- step(X-0.5) # P(at least 1 X from binom dist value does not fall in interval)
+	}
+
+# Exactly one of the Xis will not fall into the interval [-1.96, 1.96].
+model2 {
+	a <- phi(-1.96) # cdf prob of below -1.96
+	b <- phi(1.96) # cdf prob of below 1.96
+	
+	prob <- 1-(b - a) # prob that x will not fall into [-1.96, 1.96].
+	X ~ dbin(prob, 10) # ten random variables created with cdf 
+	P1 <- step(X-0.5)  -step(X-1.5)  # P(exactly one X  falls out of interval)
+	}
+
+	
+	
+# Exactly two of the Xis will not fall into the interval [-1.96, 1.96].
+model3{
+	a <- phi(-1.96) # cdf prob of below -1.96
+	b <- phi(1.96) # cdf prob of below 1.96
+	
+	prob <- 1-(b - a) # prob that x will not fall into [-1.96, 1.96].
+	X ~ dbin(prob, 10) # ten random variables created with cdf
+	P2 <- step(X-1.5) - step(X-2.5)  # P(exactly two X's fall out of interval)
+	}
+	
+	
+	
+	
+	
+	

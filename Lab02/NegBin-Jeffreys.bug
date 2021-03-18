@@ -1,0 +1,10 @@
+model{
+  ## likelihood  
+  for(i in 1:N){
+    y[i] ~ dnegbin(p, 1)
+  }
+  
+  ## prior
+  u ~ dunif(0, 1000)
+  p <- 1 - pow( (1-exp(-u))/(1+exp(-u)), 2)
+}

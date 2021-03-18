@@ -1,0 +1,9 @@
+model{
+  ## likelihood  
+  for(i in 1:N){
+    y[i] ~ dnegbin(p, 1)
+  }
+  
+  ## prior
+  p ~ dbeta(1, 1)
+}

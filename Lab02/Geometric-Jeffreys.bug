@@ -1,0 +1,11 @@
+model{
+  ## likelihood  
+  for(i in 1:N){
+    y[i] ~ dgeom(p)
+  }
+  
+  ## prior
+  u ~ dflat()
+  u.abs <- abs(u)
+  p <- 1 - pow( (1-exp(-u.abs))/(1+exp(-u.abs)), 2)
+}

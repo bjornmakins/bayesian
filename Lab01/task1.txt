@@ -1,6 +1,6 @@
 ## Task 1: Task 1: Let X1, . . . , X10 be 10 independent and identically distributed (i.i.d.) random variables, each having a standard normal distribution.
 
-# bullet point 1
+# Exact Numeric Aproach in R
 # probability that a random variable will fall in interval [-1.96, 1.96]
 
 P_in <- pnorm(1.96) - pnorm(-1.96)

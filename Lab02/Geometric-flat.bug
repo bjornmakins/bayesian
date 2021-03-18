@@ -1,0 +1,9 @@
+model{
+  ## likelihood  
+  for(i in 1:N){
+    y[i] ~ dgeom(p)
+  }
+  
+  ## prior
+  p ~ dbeta(1, 1)
+}

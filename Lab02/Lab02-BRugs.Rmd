@@ -1,0 +1,132 @@
+---
+title: "Computer Lab 02 --- `BRugs`"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy=TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the `R` package `BRugs` is available (e.g. a Linux operating system), then the following shows how to run the analysis using the `BRugs` package.  It is essentially a compilation of the code shown in the lecture.
+
+# Douglas firs example with `BRugs`
+
+
+## Flat prior
+
+Assume we have the `BUGS` code for that example in a file called `Geometric-flat.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Geometric-flat.bug"), sep="\n")
+```
+
+Note that this code is using a flat prior for $p$.
+
+First, we load the package `BRugs`:
+
+```{r}
+library(BRugs)
+```
+
+Then we check whether the code in the file `Geomtric-flat.bug` is syntactically correct[^1] :
+```{r}
+modelCheck("Geometric-flat.bug")
+```
+
+This time, as we have observed data, we first have to write it out into a file and then load it into our program.  The names of the objects that contain the data has to be specified in a list to `bugsData()`, which also needs the name of a file to write too:
+```{r}
+y.freq <- c(71, 28, 5, 2, 2, 1)
+y.obs <- rep(1:6, times=y.freq)
+bugsData(list(y = y.obs, N = length(y.obs)), file="data.txt")
+modelData("data.txt")
+```
+
+```{r}
+
+bugsData(list(y = y.obs, N = length(y.obs)), file="Lab02Ex2dat.txt")
+
+```
+
+Next, we compile four chains:
+```{r}
+nch <- 4
+modelCompile(numChains=nch)
+```
+
+And generate initial values for each of the chains:
+```{r}
+modelGenInits()
+```
+
+Next, we specify the node~$p$ that we want to monitor:
+```{r}
+samplesSet("p")
+```
+and then update the model 10,000 times:
+```{r}
+modelUpdate(10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+samplesStats("*", beg=1001)
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1,1))
+```
+
+The traceplot and the estimated auto-correlation function can be obtained with the following commands:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesHistory("*", ask=FALSE, mfrow=c(1,1))
+samplesAutoC("*", chain=1, ask=FALSE, beg=1001, mfrow=c(1,1))
+```
+
+## Jeffreys' prior
+
+Assume we have the `BUGS` code for that example in a file called `Geometric-Jeffreys.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Geometric-Jeffreys.bug"), sep="\n")
+```
+
+We follow pretty much the same steps as above:
+
+```{r}
+modelCheck("Geometric-Jeffreys.bug")
+y.freq <- c(71, 28, 5, 2, 2, 1)
+y.obs <- rep(1:6, times=y.freq)
+bugsData(list(y = y.obs, N = length(y.obs)), file="data.txt")
+modelData("data.txt")
+nch <- 4
+modelCompile(numChains=nch)
+```
+
+However, since `u` has a flat prior, `OpenBUGS` cannot generate automatically\footnote{Or should this be automagically?} initial values for the chains.  We have to specify initial values.  Note that initial values have to be specified via a list with named objects for each compiled chain.  The lists for all the chains should be in a list that is then written out by the `bugInits()` command.  In other words, that command expects a list of list(s) as it first argument: 
+```{r, fig.height=6, fig.width=8, out.width="0.8\\textwidth", fig.align='center'}
+inits <- list(list(u=1), list(u=2), list(u=4), list(u=8))
+fnames <- paste0("init", 1:nch, ".txt")
+bugsInits(inits, numChains=nch, fileName=fnames)
+modelInits(fnames)
+samplesSet("p")
+modelUpdate(10000)
+samplesStats("*", beg=1001)
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1,1))
+samplesHistory("*", ask=FALSE, mfrow=c(1,1))
+samplesAutoC("*", chain=1, beg=1001, ask=FALSE, mfrow=c(1,1))
+samplesAutoC("*", chain=4, beg=1001, ask=FALSE, mfrow=c(1,1))
+```
+
+[^1]: If you encounter an error on the computer in the Mathematics Computing Lab, look up in last week's lab on how to use the `shortPathName()` command to construct a file name that the `modelCheck()` command can handle.

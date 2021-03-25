@@ -1,0 +1,19 @@
+model{
+  ## likelihood  
+  for(i in 1:n1){
+    y1[i] ~ dpois(lambda1)
+  }
+  for(i in 1:n2){
+    y2[i] ~ dpois(lambda2)
+  }
+
+  ## quantities of interest
+  diff.lambda <- lambda1-lambda2
+  p.pos.diff <- step(diff.lambda)
+
+  ## prior
+  u1 ~ dunif(-10000, 10000)
+  lambda1 <- pow(u1, 2)
+  u2 ~ dunif(-10000, 10000)
+  lambda2 <- pow(u2, 2)
+}

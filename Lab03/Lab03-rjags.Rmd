@@ -1,0 +1,158 @@
+---
+title: "Computer Lab 03 --- `rjags`"
+output:
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+  html_notebook:
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy=TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the R
+package `rjags` and `JAGS` is available (e.g. a MAC OSX system or a
+Linux operating system), then the following shows how to run the two
+computer lab examples using the `rjags` package.
+
+# Exercise 1
+
+Assume we have the `BUGS` code for that example in a file called `Binomial.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial.bug"), sep="\n")
+```
+
+First, we load the package `rjags`:
+
+```{r}
+library(rjags)
+```
+
+With JAGS, the model checking, data loading and compiling step is done in one step.
+Hence, we compile our model while at the same time specifying the data by the
+following command:
+```{r}
+mod <- jags.model("Binomial.bug", data=list(y=12), n.chains=4)
+```
+
+If we want to run the chains for 10000 iterations while monitoring `p`, we have to issue the following command:
+```{r}
+out <- coda.samples(mod, "p", n.iter=10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+summary(out)
+```
+
+The trace plot and the empirical densities of the simulated values are produced by the first command in the following code snippet, while the estimated auto-correlation function of the chain is obtained and plotted by the second and third command, respectively:
+```{r, fig.height=4, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+
+
+
+## Bayes--Laplace prior
+
+To use the Bayes--Laplace prior, just change the last command in the above file to
+```
+  p ~ dbeta(1, 1)
+```
+
+## Haldane's prior
+
+Unfortunately, `JAGS` does not have a `dflat()` improper prior.  We have to specify a proper prior, which can be done by using a uniform prior over a large enough region.  Thus,  assume we have the `BUGS` code for that example in a file called `Binomial-Haldane-jags.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial-Haldane-jags.bug"), sep="\n")
+```
+After that, we follow pretty much the same steps as above:
+
+```{r, fig.height=4, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+mod <- jags.model("Binomial-Haldane-jags.bug", data=list(y=12), n.chains=4)
+out <-coda.samples(mod, c("p", "psi"), n.iter=10000)
+summary(out)
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+
+## Zellner's prior
+
+As with the Haldane prior, we have to modify the code a bit as `JAGS` does not have a `dflat()` prior.  Also, JAGS does not have the `dloglik` function.  So we have to use the zero trick as described in the lab sheet.  Finally, `JAGS` does not allow a node to appear twice on the left hand side, so we have to specify that we have observed data on a variable called `dummy` and that 0 was obsered.
+
+Hence, assume we have the `BUGS` code for that example in a file called `Binomial-Zellner-jags.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial-Zellner-jags.bug"), sep="\n")
+```
+
+Now, we follow pretty much the above steps, except that we have to specify in the list of observed data that we observed `dummy = 0`:
+```{r, fig.height=4, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+mod <- jags.model("Binomial-Zellner-jags.bug", data=list(y=12, dummy=0), n.chains=4)
+out <-coda.samples(mod, "p", n.iter=10000)
+summary(out)
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+
+# Exercise 2
+
+Unfortunately, `JAGS` does not have a `dflat()` improper prior.  We have to specify a proper prior, which can be done by using a uniform prior over a large enough region.  Thus,  assume we have the `BUGS` code for that example in a file called `Poisson-Jeffreys-jags.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Poisson-Jeffreys-jags.bug"), sep="\n")
+```
+
+First, we load the package `rjags`:
+
+```{r}
+library(rjags)
+```
+
+With JAGS, the model checking, data loading, initialising and compiling step is done in one step.
+Hence, we compile our model while at the same time specifying the data and the initial values[^1] for the chains by the following command:
+```{r}
+y.town.freq <- c(6, 10, 4, 5, 1)
+y.town <- rep(0:4, times=y.town.freq)
+n.town <- length(y.town)
+y.country.freq <- c(9, 8, 5, 1)
+y.country <- rep(0:3, times=y.country.freq)
+n.country <- length(y.country)
+data.in <- list(y1 = y.town, y2 = y.country, n1 = n.town, n2 = n.country)
+inits <- list(list(u1 = 1, u2 = 1), list(u1 = 2, u2 = 1), list(u1 = 1, u2 = 2),list(u1 = 2, u2 = 2))
+mod <- jags.model("Poisson-Jeffreys-jags.bug", data=data.in, inits=inits, n.chains=4)
+```
+
+If we want to run the chain for 10000 iterations while monitoring
+`lambda1`, `lambda2`, `diff.lambda` and `p.pos.diff`, we have to issue
+the following command: 
+```{r}
+out <- coda.samples(mod, c("lambda1", "lambda2", "diff.lambda", "p.pos.diff"), n.iter=10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+summary(out)
+```
+
+The trace plot and the empirical densities of the simulated values are produced by the first command in the following code snippet, while the estimated auto-correlation function of the chain is obtained and plotted by the second and third command, respectively:
+```{r, fig.height=8, fig.width=10, out.width="0.9\\textwidth", fig.align='center'}
+plot(out)
+autocorr(out)
+autocorr.plot(out)
+```
+
+[^1]: And you will experience an error message if you run this example without specifying starting values.  Try it out.

@@ -1,0 +1,9 @@
+model{
+  ## likelihood
+  y ~ dbin(p, 20)
+
+  ## prior
+  dummy  ~ dpois(phi)
+  phi <- -(p*log(p) + (1-p)*log(1-p))
+  p ~ dunif(0,1)
+}

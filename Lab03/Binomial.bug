@@ -1,0 +1,7 @@
+model{
+  ## likelihood
+  y ~ dbin(p, 20)
+
+  ## prior
+  p ~ dbeta(0.5, 0.5)
+}

@@ -1,0 +1,358 @@
+---
+title: "Computer Lab 03 --- `Stan`"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 4
+    fig_width: 10
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      tidy = TRUE)
+```
+
+This notebook continues your journey to learn about `Stan`, another probabilistic programming language.  There is plenty of information about the Stan project available at http://mc-stan.org/users/documentation/index.html.
+
+To see a nicely rendered version of this notebook, which is easier to read, you should click on the `Preview` button.  The typeset version of this notebook is also available on LMS so that you can see what output you are supposed to see when running the code.  But you are free to modify the code and to experiment.
+
+We will use `Stan` via `R` and, in general, will need the following two packages to do so:
+```{r}
+library(rstan)
+library(bayesplot)
+```
+We might as well execute the commands suggested in these start up messages:
+```{r}
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+# Exercise 1: Binomial model
+
+## Proper priors
+
+### Beta priors
+
+A nice feature of R notebooks is that you can insert code from other languages too.  Click on the arrow next to the `Insert` tab and you can see that you (currently) can insert code written in `Bash`, `Python`, `Rcpp`, `SQL` and `Stan`.  The next chunk is code written in the `Stan` language.  The rendering in the `Preview` option seems to be garbled (at least on my computer) but I am sure that this infidelity will soon be fixed in future versions.
+
+For the moment, hit the right most green triangle (the one pointing to the right) to start the processing of this chunk.  The compilation will take some time and so you might start it now and have your computer compile the code while reading the explanation of the code below.
+
+```{stan output.var="BinMod_beta"}
+  data{
+    int <lower=1> n;
+    int <lower=0, upper=n> y;
+    real <lower=0> alpha;
+    real <lower=0> beta;
+  }
+
+  parameters{
+    real <lower=0, upper=1> p;
+  }
+
+  model{
+    // likelihood
+    y ~ binomial(n, p);
+    
+    // prior
+    p ~ beta(alpha, beta);
+  }
+```
+Remember, when inserting Stan code into an R notebook, you will see that the top line reads `{stan output.var=}`.  You have to specify a name (in quotation marks) as argument to `output.var`.  If your model is successful compiled, you should see an object with that name appear in your `Global Environment` (top right pane in the standard configuration of RStudio) that contains the compiled model.  If your model is not successful compiled, happy bug hunting :-)
+
+For this model, we will have data.  Thus we need a `data` block.  In fact, we will pass two data points to the compiled code, $n$ the number of trials and $y$ the number of observed success.  Additionally, as this program uses the family of beta distributions as prior, we also pass in the hyper-parameters $\alpha$ and $\beta$.
+Remember, our model is that $y$ is a realisation of a random variable $Y$ that has a binomial distribution with parameters $n$ (size) and $p$ (success probability).  We declare both these quantities as integers.  Note that we can specify bounds on the input data, using instructions in angled brackets between the type of the quantity and its name.  Here we postulate that $n$ should be at least 1, and that $y$ must be between 0 and n.  Stan will check at run-time that the data we specify fulfils these constraints.  Thus, using such instructions is useful for catching errors and good, defensive programming practice.  Likewise, we declare the the $\alpha$ and $\beta$ to be real numbers, with lower bounds of 0.
+
+Since we assume $n$ fixed (part of the input data), we have only one parameter, the success probability $p$.  We define it in a `parameters` block.  Since $p$ can take any value between 0 and 1, we have to declare it as a `real`.  But we also specify these constraints (defensive programming is good!).
+
+Finally, in the `model` block we specify our model.  Namely that $y$ is binomial distributed with parameters $n$ and $p$, and that $p$ has a beta distribution as its prior.
+
+Note that every line (whether it is declaration or a statement) is ended with a semi-colon `;`.
+
+Hopefully, by now the code has compiled, that is the green right pointing triangle that turned into a red square, after you clicked on it, has turned into a green right pointing triangle again.  You should also see some output resulting from the C++ compiler.
+
+The data is passed to the compiled code as a named list, and we have to pass data to every quantity declared in the `data`.  Here $n$ and $y$, with the former being 20 and the latter 12.  We also choose $\alpha=0.5$ and $\beta=0.5$, i.e. we use Jeffreys' prior.
+Sampling is then done via the command `sampling`.  In the simplest invocation of that command, we just have to name the object that contains the compiled Stan code and pass the data to the argument `data`.  To see the help file on this command, position the cursor on it and press F1 (as you can do with any command whose help file you want to read).  
+
+```{r}
+data.in <- list(n=20, y=12, alpha=0.5, beta=0.5)
+model.fit1 <- sampling(BinMod_beta, data=data.in)
+```
+
+The `print` command gives us a similar summary to what we have seen from `OpenBUGS` and `JAGS`.  By default, it shows the result for all parameters, where a default parameter is `lp__`.  We will discuss this parameter later, but for the moment we ignore it and specify that we only want to have a summary for our parameter $p$:
+```{r}
+print(model.fit1, pars="p", probs=c(0.1,0.5,0.9))
+```
+For the moment, we shall ignore the last two columns in the output (they will be explained later) and most of the explanations before and after the numeric output.
+
+Note that this command seems to be somewhat frugal regarding the number of digits used in the output by default.  But this is easily changed: 
+```{r}
+print(model.fit1, pars="p", probs=c(0.1,0.5,0.9), digits=5)
+```
+
+`Stan` is using a Hamiltonian Markov Chain (HMC) sampler.  So it is a good idea to always change the diagnostics, more about them in (later) lectures, provided by the `rstan` package:
+```{r}
+check_hmc_diagnostics(model.fit1)
+```
+
+Based on the simulated values, we can obtain a plot that shows the median of the simulated values (circle), the range in which 50% of the simulated values fall (thick line) and the range in which 90% of the simulated values fall (thin line).
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+posterior <- as.array(model.fit1)
+color_scheme_set("red")
+mcmc_intervals(posterior, pars="p")
+```
+If you want to display the mean of the simulated values, you can do so by using the optional command `point_est = "mean"`. The percentage of simulated values that fall into the range indicated by the thick and thin line can be controlled by the optional arguments `prob` and `prob_outer`, respectively;  see the help file of the command `mcmc_intervals` (put cursor on that command and press F1).
+
+
+Alternatively to straight lines, we can also plot a density estimate:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+mcmc_areas(posterior, pars="p", point_est="mean")
+```
+
+
+Trace plots and plots of the estimated auto-correlation function are also easily obtained:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+color_scheme_set("mix-blue-red")
+mcmc_trace(posterior, pars="p")
+mcmc_acf(posterior, pars="p")
+```
+
+To use the Bayes--Laplace prior in Stan, we only have to change the hyper parameters that we pass to the already compiled code:
+```{r}
+data.in <- list(n=20, y=12, alpha=1, beta=1)
+model.fit1a <- sampling(BinMod_beta, data=data.in)
+print(model.fit1a, pars="p", probs=c(0.1,0.5,0.9), digits=5)
+```
+
+`Stan` is using a Hamiltonian Markov Chain (HMC) sampler.  So it is a good idea to always change the diagnostics, more about them in (later) lectures, provided by the `rstan` package:
+```{r}
+check_hmc_diagnostics(model.fit1a)
+```
+
+Copy and paste your favourite diagnostic plots from above and investigate them.
+
+### Zellner's prior
+
+The Stan program for the model that uses Zellner's prior is nearly identical to the previous one (you should hit the green right pointing arrow now to start the compilation of this chunk).  As Stan does not provide Zellner's prior by default, we have to program it ourselves.  But this is easily done in the `functions` block.  In fact, if we program a function that ends on `_lpdf` and implements the logarithm of a probability density function (up to an additive constant), then we can use the function (without the suffix `_lpdf`) later in probability statements.  For more details see the language manual (open it in a PDF reader and search for `_lpdf`). For Zellner's prior 
+\[ f(p) \propto p^p (1-p)^{(1-p)}\]
+whence
+\[ \log(f(p)) \propto p \log(p) + (1-p) \log(1-p)\]
+This function is easily implemented in the `functions` block, using the name `zellner_lpdf` and can then be used in the `model` block to put Zellner's prior on the parameter $p$:
+
+```{stan output.var="BinMod_Zellner"}
+  functions{
+    real zellner_lpdf(real p){
+      return p*log(p)+(1-p)*log(1-p);
+    }
+  }
+
+  data{
+    int<lower=1> n;
+    int<lower=0, upper=n> y;
+  }
+
+  parameters{
+    real<lower=0, upper=1> p;
+  }
+
+  model{
+    // likelihood
+    y ~ binomial(n, p);
+    
+    // prior
+    p ~ zellner();
+  }
+```
+
+The rest of the code is pretty much the same as in the previous example.  Generate samples:
+```{r, results='hide'}
+data.in <- list(n=20, y=12)
+model.fit2 <- sampling(BinMod_Zellner, data=data.in)
+```
+
+Print a summary:
+```{r}
+print(model.fit2, pars="p", probs=c(0.1,0.5,0.9), digits=5)
+```
+
+`Stan` is using a Hamiltonian Markov Chain (HMC) sampler.  So it is a good idea to always change the diagnostics, more about them in (later) lectures, provided by the `rstan` package:
+```{r}
+check_hmc_diagnostics(model.fit2)
+```
+
+
+Graphical outputs of the summary:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+posterior <- as.array(model.fit2)
+color_scheme_set("red")
+mcmc_intervals(posterior, pars="p")
+```
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+mcmc_areas(posterior, pars="p", point_est="mean")
+```
+
+Trace plots and estimated auto-correlation functions:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+color_scheme_set("mix-blue-red")
+mcmc_trace(posterior, pars="p")
+mcmc_acf(posterior, pars="p")
+```
+
+## Improper priors
+### Haldane's prior
+
+To use Haldane's prior, remember that this prior is equivalent to using a flat prior on the log odds.  Hence our `data` block is as before.  In the `parameters` block we declare our parameter to b e `lodds`, the log odds.  Then we use the `transformed parameters` block declares our parameter of interest $p$ and, once it is declared, we can calculate it from the log odds parameter.  Finally, in the `model` block we have the familiar statement about the sampling distribution of `y` and leave Stan to put its default flat prior on `lodds`:
+
+```{stan output.var="BinMod_Haldane"}
+  data{
+    int<lower=1> n;
+    int<lower=0, upper=n> y;
+  }
+
+  parameters{
+    real lodds;
+  }
+
+  transformed parameters{
+    real<lower=0, upper=1> p;
+    p = 1/(1+exp(-lodds));
+  }
+  
+  model{
+    //likelihood
+    y ~ binomial(n, p);
+    
+    // Stan automatically puts a flat prior on lodds
+    // Hence Haldane's prior is put onto p
+  }
+```
+
+Nothing new here:
+```{r, results='hide'}
+data.in <- list(n=20, y=12)
+model.fit3 <- sampling(BinMod_Haldane, data=data.in)
+```
+
+Now we can look at two parameters, $p$ and the log odds:
+```{r}
+print(model.fit3, pars=c("p", "lodds"), probs=c(0.1,0.5,0.9), digits=5)
+```
+
+`Stan` is using a Hamiltonian Markov Chain (HMC) sampler.  So it is a good idea to always change the diagnostics, more about them in (later) lectures, provided by the `rstan` package:
+```{r}
+check_hmc_diagnostics(model.fit3)
+```
+
+
+And also at the graphical output for these two parameters:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+posterior <- as.array(model.fit3)
+color_scheme_set("red")
+mcmc_intervals(posterior, pars=c("p", "lodds"))
+```
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+mcmc_areas(posterior, pars=c("p", "lodds"), point_est="mean")
+```
+
+Or their trace plots and estimated auto-correlation functions:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+color_scheme_set("mix-blue-red")
+mcmc_trace(posterior, pars=c("p", "lodds"))
+mcmc_acf(posterior, pars=c("p", "lodds"))
+```
+
+# Exercise 2: Comparing two Poisson means
+
+This model is readily implemented in `Stan`.  You know the drill, hit the green right pointing triangle now, and then continue to read below.
+
+```{stan output.var="Poisson_Jeffreys"}
+data{
+  int<lower=0> n1;
+  int<lower=0> n2;
+  int<lower=0> y1[n1];
+  int<lower=0> y2[n2];
+}
+
+parameters{
+  real u1;
+  real u2;
+}
+
+transformed parameters{
+  real<lower=0> lambda1;
+  real<lower=0> lambda2;
+  real lambda_diff;
+  real prob_positive_diff;
+ 
+  lambda1 = u1*u1;
+  lambda2 = u2*u2;
+  lambda_diff = lambda1 - lambda2;
+  prob_positive_diff = lambda1 > lambda2;
+}
+
+model{
+  // likelihood
+  y1 ~ poisson(lambda1);
+  y2 ~ poisson(lambda2);
+  
+  // Stan places automatically flat priors on the parameters u1 and u2
+  // Hence, on the scale of lambda1 and lambda2 we are using Jeffrey's priors
+}
+```
+
+First, we need a `data` block in which we declare the objects to which we will pass the data.  Here we need (non-negative) integers `n1` and `n2` to hold respectively $n_1$ and $n_2$.  Then we can use these variables, we can declare the vectors of integers that will hold the observations $y_{1i}$s and $y_{2i}$s.  If we put a constraint on a vector, e.g. with a `<lower=0>` construct, then this constraint holds for every element of the vector.
+
+Our parameters in the `parameters` block are `u1` and `u2` on which we will put flat priors.  This will be achieved by not specifying any prior for these variables in the `model` block.  Remember, if no prior is specified for a parameter, `Stan` uses a flat prior for such a parameter.
+
+In the `transformed parameters` block we declare `lambda1` and `lambda2` that correspond to our parameters of interest $\lambda_1$ and $\lambda_2$, respectively.  These are determined from `u1` and `u2` as discussed in the lectures.  We also declare `lambda_diff` to hold the difference between `lambda1` and `lambda2`.  Likewise, we declare `prob_positive_diff` which checks whether `lamba1` is larger than `lambda2`.  Note, we could have put the declaration of these two quantities, and the two lines that compute them, into the `generated quantities` block instead.  That block would have to appear after the `model` block.
+
+The `model` block just specifies the sampling distribution of the observations.  Note that we use again a vectorised version of the `poisson` command to write the code quite compactly.  We could have been more explicit and write the model as
+```
+  for( i in 1:n1)
+    y1[i] ~ poisson(lambda1);
+  for( i in 1:n2)
+    y2[i] ~ poisson(lambda2);
+```
+
+Hopefully the model is compiled by now.  We still have to put the data that we want to pass to `Stan` into a named list, where the left hand side of each `=` is the name of the variable used in the `Stan` program and the right hand side is the name of the object in our `R` session.  Finally we call the compiled Stan code via the `sampling()` command:
+```{r, results='hide'}
+y.town.freq <- c(6, 10, 4, 5, 1)
+y.town <- rep(0:4, times=y.town.freq)
+n.town <- length(y.town)
+y.country.freq <- c(9, 8, 5, 1)
+y.country <- rep(0:3, times=y.country.freq)
+n.country <- length(y.country)
+data.in <- list(y1 = y.town, n1 = n.town, y2 = y.country, n2 = n.country)
+model.fit <- sampling(Poisson_Jeffreys, data=data.in)
+```
+
+The simulated values from the posterior should now be in the object `model.fit` and we can create some summary statistics for them:
+```{r}
+print(model.fit, pars=c("lambda1", "lambda2", "lambda_diff", "prob_positive_diff"), probs=c(0.1,0.5,0.9), digits=4)
+```
+
+`Stan` is using a Hamiltonian Markov Chain (HMC) sampler.  So it is a good idea to always change the diagnostics, more about them in (later) lectures, provided by the `rstan` package:
+```{r}
+check_hmc_diagnostics(model.fit)
+```
+
+Graphical outputs of the summary:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+posterior <- as.array(model.fit)
+color_scheme_set("red")
+mcmc_intervals(posterior, pars=c("lambda1", "lambda2", "lambda_diff"))
+```
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+mcmc_areas(posterior, pars=c("lambda1", "lambda2", "lambda_diff"), point_est="mean")
+```
+
+Trace plots and estimated auto-correlation functions:
+```{r, out.width="0.8\\textwidth", fig.align='center'}
+color_scheme_set("mix-blue-red")
+mcmc_trace(posterior, pars=c("lambda1", "lambda2", "lambda_diff"))
+mcmc_acf(posterior, pars=c("lambda1", "lambda2", "lambda_diff", "prob_positive_diff"))
+```

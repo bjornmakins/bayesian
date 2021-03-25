@@ -1,0 +1,236 @@
+---
+title: "Computer Lab 03 --- `BRugs`"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      tidy=TRUE)
+```
+
+# Introduction
+
+If you are on a system on which you cannot run `OpenBUGS` but the R package `BRugs` is available (e.g. a Linux operating system), then the following shows how to run the two computer lab examples using the `BRugs` package.
+
+# Exercise 1
+
+Assume we have the `BUGS` code for that example in a file called `Binomial.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial.bug"), sep="\n")
+```
+
+Note that this code is using Jeffreys' prior for $p$.
+
+First, we load the package `BRugs`:
+
+```{r}
+library(BRugs)
+```
+
+Then we check whether the code in the file `Binomial.bug` is syntactically correct:
+```{r}
+modelCheck("Binomial.bug")
+```
+
+This time, as we have observed data, we first have to write it out into a file and then load it into our program.  The names of the objects that contain the data has to be specified in a list to `bugsData()`, which also needs the name of a file to write too:
+```{r}
+y <- 12
+bugsData(list("y"), file="data.txt")
+modelData("data.txt")
+```
+
+
+Next, we compile the model so that we run four chains:
+```{r}
+modelCompile(numChains=4)
+```
+
+And generate initial values for that the chains:
+```{r}
+modelGenInits()
+```
+
+Next, we specify the node that we want to monitor:
+```{r}
+samplesSet("p")
+```
+and then update the model 10,000 times:
+```{r}
+modelUpdate(10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+samplesStats("*", beg=1001)
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1, 1))
+```
+
+The traceplot and the estimated auto-correlation function can be obtained with the following commands:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesHistory("*", ask=FALSE, mfrow=c(1, 1))
+samplesAutoC("*", chain=1, beg=1001, ask=FALSE, mfrow=c(1, 1))
+```
+
+## Bayes--Laplace prior
+
+To use the Bayes--Laplace prior, just change the last command in the above file to
+```
+  p ~ dbeta(1, 1)
+```
+
+## Haldane's prior
+
+Assume we have the `BUGS` code for that example in a file called `Binomial-Haldane.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial-Haldane.bug"), sep="\n")
+```
+
+We follow pretty much the same steps as above:
+
+```{r}
+modelCheck("Binomial-Haldane.bug")
+y <- 12
+nch <- 4
+bugsData(list("y"), file="data.txt")
+modelData("data.txt")
+modelCompile(numChains=nch)
+```
+However, since `psi` has a flat prior, `OpenBUGS` cannot generate automatically\footnote{Or should this be automagically?} initial values for the chain.  We have to specify initial values.  Note that initial values have to be specified via a list with named objects for each compiled chain (here 4).  The list for each of the chains should be in a list that is then written out by the `bugInits()` command.  In other words, that command expects a list of list(s) as it first argument: 
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+inits <- list(list(psi=-1), list(psi = -0.5), list(psi = 0.5), list(psi = 1))
+fnames <- paste0("init", 1:nch, ".txt")
+bugsInits(inits, numChains = nch, fileName = fnames)
+modelInits(fnames)
+samplesSet(c("p", "psi"))
+```
+
+```{r}
+modelUpdate(10000)
+samplesStats("*", beg=1001)
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1, 2))
+samplesHistory("*", ask=FALSE, mfrow=c(2, 1))
+samplesAutoC("*", chain=1, beg=1001, ask=FALSE, mfrow=c(1, 2))
+```
+
+## Zellner's prior
+
+Assume we have the `BUGS` code for that example in a file called `Binomial-Zellner.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Binomial-Zellner.bug"), sep="\n")
+```
+
+We follow pretty much the same steps as above:
+
+```{r}
+modelCheck("Binomial-Zellner.bug")
+y <- 12
+nch <- 4
+bugsData(list("y"), file="data.txt")
+modelData("data.txt")
+modelCompile(numChains=nch)
+```
+However, since `p` has a flat prior, `OpenBUGS` cannot generate automatically initial values for the chains.  We have to specify initial values: 
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+inits <- list(list(p = 0.4), list(p = 0.6), list( p = 0.55), list(p = 0.5))
+fnames <- paste0("init", 1:nch, ".txt")
+bugsInits(inits, numChains = nch, fileName = fnames)
+modelInits(fnames)
+samplesSet("p")
+modelUpdate(10000)
+samplesStats("*", beg=1001)
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1, 1))
+samplesHistory("*", ask=FALSE, mfrow=c(1, 1))
+samplesAutoC("*", chain=1, beg=1001, ask=FALSE, mfrow=c(1, 1))
+```
+
+# Exercise 2
+
+Assume we have the `BUGS` code for that example in a file called `Poisson-Jeffreys.bug`:
+
+```{r, echo = FALSE, comment=""}
+cat(readLines("Poisson-Jeffreys.bug"), sep="\n")
+```
+
+Note that this code is using Jeffreys' prior for $p$.
+
+First, we load the package `BRugs`:
+
+```{r}
+library(BRugs)
+```
+
+Then we check whether the code in the file `Poisson-Jeffreys.bug` is syntactically correct:
+```{r}
+modelCheck("Poisson-Jeffreys.bug")
+```
+
+This time, as we have observed data, we first have to write it out into a file and then load it into our program.  The names of the objects that contain the data has to be specified in a list to `bugsData()`, which also needs the name of a file to write too:
+```{r}
+y.town.freq <- c(6, 10, 4, 5, 1)
+y.town <- rep(0:4, times=y.town.freq)
+n.town <- length(y.town)
+y.country.freq <- c(9, 8, 5, 1)
+y.country <- rep(0:3, times=y.country.freq)
+n.country <- length(y.country)
+
+bugsData(list(y1 = y.town, n1 = n.town,
+              y2 = y.country, n2 = n.country), 
+         file="data.txt")
+modelData("data.txt")
+```
+
+
+Next, we compile four chains:
+```{r}
+nch <- 4
+modelCompile(numChains=nch)
+```
+
+And generate initial values for each chain:
+```{r}
+inits <- list(list(u1 = 1, u2 = 1), list(u1 = 2, u2 = 1), list(u1 = 1, u2 = 2),list(u1 = 2, u2 = 2))
+fnames <- paste0("init", 1:nch, ".txt")
+bugsInits(inits, numChains = nch, fileName = fnames)
+modelInits(fnames)
+```
+
+Next, we specify the nodes that we want to monitor:
+```{r}
+samplesSet(c("lambda1", "lambda2", "diff.lambda", "p.pos.diff"))
+```
+and then update the model 10,000 times:
+```{r}
+modelUpdate(10000)
+```
+
+The statistics on each monitored node we can obtain as follows:
+```{r}
+samplesStats("*", beg=1001)
+```
+
+While the empirical densities of the simulated values are produced by the following command:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesDensity("*", beg=1001, ask=FALSE, mfrow=c(1, 1))
+```
+
+The traceplot and the estimated auto-correlation function can be obtained with the following commands:
+```{r, fig.height=6, fig.width=8, out.width="0.9\\textwidth", fig.align='center'}
+samplesHistory("*", ask=FALSE, mfrow=c(1, 1))
+samplesAutoC("*", chain=1, beg=1001, ask=FALSE, mfrow=c(1, 1))
+```
+

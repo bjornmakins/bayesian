@@ -1,0 +1,8 @@
+model{
+  ## likelihood
+  y ~ dbin(p, 20)
+
+  ## prior
+  p <- 1/(1+exp(-psi))
+  psi ~ dunif(-10000, 10000)
+}
